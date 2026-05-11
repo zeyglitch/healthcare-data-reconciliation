@@ -1,0 +1,100 @@
+==============================================================
+Guide développeur — Mise à jour du code et génération de l'exécutable
+==============================================================
+
+Ce document explique, de façon claire et conviviale, comment modifier
+le code, tester vos changements et recréer l'exécutable distribuable.
+
+1) Aperçu rapide du projet
+- `src/controle_exhaust.py` : logique métier et traitements (Pandas).
+- `src/interface.py`       : interface graphique (Tkinter).
+- `requirements.txt`      : dépendances Python utilisées par le projet.
+
+2) Préparer l'environnement de développement
+- Installez Python 3.9+ si nécessaire.
+- Ouvrez un terminal dans le dossier racine du projet.
+- Créez et activez un environnement virtuel (fortement recommandé) :
+   - PowerShell : `python -m venv env` puis `env\Scripts\Activate.ps1`
+   - CMD       : `python -m venv env` puis `env\Scripts\activate.bat`
+- Installez les dépendances : `pip install -r requirements.txt`
+
+3) Modifier le code
+- Travaillez dans le dossier `src/` :
+   - `controle_exhaust.py` pour la logique et les traitements de données,
+   - `interface.py` pour la partie interface graphique.
+- Faites des changements petits et itératifs, testez souvent.
+
+4) Tester localement
+- Lancez l'interface en développement : `python src/interface.py`
+- Utilisez les jeux d'essai dans `data_test/` ou vos propres exports
+   pour vérifier les cas courants et les cas limites (dates manquantes,
+   doublons, cas particuliers d'exclusions).
+
+5) Recréer l'exécutable (`.exe`)
+Avant de créer l'exécutable, vérifiez que tout fonctionne en Python.
+
+- Installer PyInstaller : `pip install pyinstaller`
+- Générer l'exécutable depuis la racine du projet :
+   `pyinstaller --noconsole --onefile --name "Conciliation_DIM" src/interface.py`
+- L'exécutable final se trouve ensuite dans `dist/Conciliation_DIM.exe`.
+
+Conseils pratiques
+- Testez l'exécutable sur une machine propre pour détecter des dépendances
+   manquantes.
+- Conservez le dossier `build/` et le fichier `.spec` si vous prévoyez
+   d'ajouter des ressources (icône, fichiers de données, etc.).
+- Ajoutez un court message de commit décrivant vos changements fonctionnels.
+
+Besoin d'aide supplémentaire ?
+- Je peux transformer ce guide en `README.md`, ajouter des étapes pour
+   l'intégration continue ou expliquer comment écrire des tests unitaires.
+
+==============================================================
+         GUIDE DEVELOPPEUR : MODIFIER LE CODE ET LE .EXE
+==============================================================
+
+Ce dossier contient le code source de l'application.
+
+--------------------------------------------------------------
+1. CONTENU DU CODE SOURCE
+--------------------------------------------------------------
+- controle_exhaust.py : Contient toute la logique métier (Pandas).
+                        C'est ici que sont définies les règles de
+                        tri, les exclusions (ex: UM 1402) et la
+                        génération des fichiers Excel de sortie.
+- interface.py        : Contient l'interface graphique (Tkinter).
+- requirements.txt    : Liste des bibliothèques nécessaires.
+
+--------------------------------------------------------------
+2. COMMENT MODIFIER LE CODE ?
+--------------------------------------------------------------
+1. Installez Python (version 3.9 ou supérieure recommandée).
+2. Ouvrez un terminal dans ce dossier.
+3. Creez un environnement virtuel (optionnel mais recommandé) :
+   python -m venv venv
+   venv\Scripts\activate
+4. Installez les dependances :
+   pip install -r requirements.txt
+5. Ouvrez controle_exhaust.py ou interface.py dans votre éditeur
+   (VS Code, PyCharm, etc.) et faites vos modifications.
+6. Testez vos modifications en lançant l'interface :
+   python interface.py
+
+--------------------------------------------------------------
+3. COMMENT RE-CREER LE FICHIER .EXE APRES MODIFICATION ?
+--------------------------------------------------------------
+Une fois que vos modifications fonctionnent correctement en Python,
+vous devez générer un nouveau fichier exécutable pour les utilisateurs.
+
+1. Assurez-vous d'avoir installé PyInstaller :
+   pip install pyinstaller
+
+2. Lancez la commande suivante dans le terminal (depuis ce dossier) :
+   pyinstaller --noconsole --onefile --name "Conciliation_DIM" interface.py
+
+3. Patientez pendant la compilation (cela prend 1 à 2 minutes).
+4. Le nouveau fichier "Conciliation_DIM.exe" se trouvera dans 
+   le sous-dossier "dist/".
+5. Vous pouvez distribuer ce nouveau fichier .exe aux utilisateurs.
+   (Les dossiers "build" et le fichier ".spec" générés peuvent 
+   être ignorés ou supprimés).

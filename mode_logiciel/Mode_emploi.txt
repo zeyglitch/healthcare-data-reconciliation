@@ -1,0 +1,50 @@
+==============================================================
+Mode d'emploi — Outil de conciliation d'exhaustivité DIM
+==============================================================
+
+Cette application compare automatiquement les données entre Orbis
+et les exports Hexagone. Voici comment l'utiliser simplement.
+
+1) Avant de commencer
+- Préparez les 7 fichiers d'export nécessaires :
+   - 1 fichier Orbis complet (période/journée)
+   - 3 exports Hexagone « Hospitalisations » : Standard, Nouveau‑Nés, Orthogénie
+   - 3 exports Hexagone « Séances » : Chimiothérapie, Dialyse péritonéale, Hémodialyse
+- Les noms de fichiers n'ont pas d'importance ; vous les sélectionnerez manuellement.
+
+2) Lancer l'application
+- Double‑cliquez sur `Conciliation_DIM.exe` (fichier autonome), ou
+- Si vous travaillez en développement : `python src/interface.py`.
+
+3) Utilisation de l'interface
+- Pour chaque ligne, cliquez sur `...` et choisissez le fichier Excel correspondant.
+- Remplissez tous les champs requis (Orbis + les 6 Hexagone).
+- Choisissez le `Dossier export` où seront sauvegardés les résultats
+   (par défaut : dossier `exports` créé dans le répertoire de travail).
+- Cliquez sur le bouton `Lancer le traitement` et patientez pendant le calcul.
+
+4) Résultats et interprétation
+Les fichiers générés se trouvent dans le dossier d'export choisi :
+
+- `Tri_1_Ecarts_Hospit_[DATE].xlsx` : compare les hospitalisations
+   - colonne « Origine de l'écart » : indique si l'enregistrement manque dans Orbis ou Hexagone.
+
+- `Tri_2_Ecarts_Seances_[DATE].xlsx` : compare les séances
+   - identifie séances manquantes ou décalées dans le temps.
+
+- `Tri_3_Sans_Date_Sortie_[DATE].xlsx` : patients sans date de sortie
+   - colonne « Date trouvée ailleurs ? » indique si l'autre logiciel contient la date.
+
+- `Synthese_Conciliation_[DATE].xlsx` : synthèse globale
+   - compteurs par catégorie pour un aperçu rapide.
+
+5) Conseils et dépannage
+- Fermez les fichiers Excel sources pendant l'exécution (sinon lecture bloquée).
+- Vérifiez que vos exports Hexagone sont bien des exports originaux
+   (deux lignes d'en‑tête habituelles attendues).
+- En cas d'erreur, relancez avec la console ouverte pour voir le détail
+   ou contactez la personne en charge du script.
+
+Si vous le souhaitez, j'adapte ce mode d'emploi en PDF ou en page
+web pour le partager facilement avec les utilisateurs.
+
