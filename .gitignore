@@ -41,3 +41,11 @@ MANIFEST
 # Operating System
 .DS_Store
 Thumbs.db
+
+# Data files
+*.csv
+*.xlsx
+*.xls
+*.xlsm
+*.xlsb
+*.ods
