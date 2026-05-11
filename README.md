@@ -42,6 +42,3 @@ pip install pyinstaller
 pyinstaller --noconsole --onefile --name "Conciliation_DIM" src/interface.py
 ```
 Le résultat sera dans le dossier `dist/`.
-
----
-*Note : Ce projet est un outil interne développé avec ❤️ pour le CH de Cahors.*
