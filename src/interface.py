@@ -1,8 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import threading
-import subprocess
-import sys
 from pathlib import Path
 
 class AppConciliation:
@@ -290,12 +288,6 @@ class AppConciliation:
             # Afficher seulement la fin du message d'erreur si trop long
             short_error = error_msg[-500:] if len(error_msg) > 500 else error_msg
             messagebox.showerror("Erreur", f"Le traitement a echoue :\n\n{short_error}")
-    
-    def _traitement_erreur(self, msg):
-        self.progress.stop()
-        self.btn_lancer.config(state="normal")
-        self.status_label.config(text="Erreur.", fg="#c62828")
-        messagebox.showerror("Erreur", f"Erreur inattendue :\n{msg}")
 
 
 if __name__ == "__main__":
