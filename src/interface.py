@@ -1,12 +1,23 @@
+"""
+Interface graphique gérant les inputs utilisateur pour le script de conciliation.
+Construite avec Tkinter (standard Python) et utilise un Threading basique pour ne pas freezer l'UI
+lors du traitement de grosses bases de données.
+"""
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import threading
 from pathlib import Path
 
 class AppConciliation:
+    """
+    Classe englobant toute l'interface. On utilise une classe pour partager 
+    l'état (les variables de chemins de fichiers, les labels d'état) entre toutes les fonctions.
+    """
     def __init__(self, root):
-        self.root = root
+        self.root = root  # Fenêtre principale (racine de l'arbre Tkinter)
         self.root.title("Controle d'exhaustivite - DIM")
+        
+        # Dimensions par défaut et minimales pour éviter un layout cassé
         self.root.geometry("1220x820")
         self.root.minsize(980, 680)
         self.root.resizable(True, True)
@@ -21,11 +32,16 @@ class AppConciliation:
         
         self.root.configure(bg=bg_color)
 
+        # --- Personnalisation du style (Thème) ---
+        # On utilise ttk (Themed Tkinter) pour avoir des composants un peu plus modernes.
         style = ttk.Style(self.root)
         try:
+            # "clam" est un thème intégré à Tkinter qui fait moins "Windows 95" que le style par défaut.
             style.theme_use("clam")
         except tk.TclError:
             pass
+            
+        # Configuration des couleurs pour nos différents composants (cadres, textes, etc.)
         style.configure("App.TFrame", background=bg_color)
         style.configure("Panel.TFrame", background=panel_color)
         style.configure("App.TLabel", background=bg_color, foreground="#17212b")
@@ -38,9 +54,14 @@ class AppConciliation:
         self.default_entry_width = 72
         self.browse_width = 4
         
-        # Variables
+        # --- Variables d'état Tkinter (StringVar) ---
+        # Les StringVar sont spéciales : si elles changent dans le code, l'interface se met à jour
+        # automatiquement, et si l'utilisateur saisit du texte, la variable se met à jour.
         self.fichier_orbis = tk.StringVar()
         self.fichiers_hexa = {}
+        
+        # On définit un dossier d'export par défaut. 
+        # Path(...).resolve() trouve le chemin absolu propre sur l'ordinateur, peu importe l'OS.
         self.dossier_export = tk.StringVar(value=str(Path('./data_test/export_test').resolve()))
         
         noms_hexa = [
@@ -72,9 +93,15 @@ class AppConciliation:
         content_host = tk.Frame(root, bg=bg_color)
         content_host.pack(fill=tk.BOTH, expand=True)
 
+        # --- Système de défilement (Scrollbar) ---
+        # Tkinter ne sait pas faire défiler une fenêtre (Frame) classique nativement.
+        # L'astuce classique est de créer un "Canvas" (une zone de dessin qui, elle, peut défiler), 
+        # d'y attacher une barre de défilement, et de dessiner notre Frame à l'intérieur de ce Canvas.
         self.canvas = tk.Canvas(content_host, bg=bg_color, highlightthickness=0)
         scrollbar = ttk.Scrollbar(content_host, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # .pack() est un gestionnaire de layout simple (empilement)
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
@@ -96,13 +123,20 @@ class AppConciliation:
             justify="left"
         ).pack(fill=tk.X)
 
+        # --- Panneau principal des fichiers ---
         files_panel = tk.Frame(self.main_frame, bg=panel_color, padx=16, pady=16, bd=1, relief="solid")
+        
+        # .grid() place les éléments dans une grille (ligne/colonne). 
+        # sticky="nsew" dit au composant de s'étirer (Nord, Sud, Est, Ouest) pour prendre toute la place.
         files_panel.grid(row=1, column=0, sticky="nsew")
+        
+        # weight=1 permet à la colonne/ligne de s'agrandir si on redimensionne la fenêtre
         self.main_frame.columnconfigure(0, weight=1)
         self.main_frame.rowconfigure(1, weight=1)
 
+        # tk.LabelFrame crée un cadre esthétique avec un titre intégré en haut à gauche. Très propre pour grouper.
         orbis_section = tk.LabelFrame(files_panel, text="Fichier Orbis", bg=panel_color, fg="#17212b", padx=12, pady=12)
-        orbis_section.grid(row=0, column=0, sticky="ew")
+        orbis_section.grid(row=0, column=0, sticky="ew") # "ew" (Est-West) = s'étire seulement horizontalement
         orbis_section.columnconfigure(1, weight=1)
         self._creer_section_fichier(orbis_section, "Orbis", self.fichier_orbis, 0)
 
@@ -152,9 +186,17 @@ class AppConciliation:
         self.btn_lancer.pack(side=tk.RIGHT)
     
     def _creer_section_fichier(self, parent, label, var, row):
+        """
+        Fonction utilitaire pour éviter de répéter 10 fois le même code de création de bouton/champ texte.
+        Génère une ligne (row) avec : un Titre (Label), un champ texte (Entry) et un bouton Parcourir (Button).
+        """
         bg_color = parent.cget("bg")
         tk.Label(parent, text=label, font=("Segoe UI", 9, "bold"), bg=bg_color, anchor="w").grid(row=row, column=0, sticky="w", pady=6, padx=(0, 10))
+        
+        # L'Entry est en "readonly" pour empêcher l'utilisateur de taper n'importe quoi au clavier. Il DOIT utiliser le bouton.
         tk.Entry(parent, textvariable=var, width=self.default_entry_width, font=("Segoe UI", 9), state="readonly").grid(row=row, column=1, sticky="ew", padx=5, pady=6)
+        
+        # Le paramètre 'command=lambda: ...' permet d'associer le clic du bouton à notre fonction de choix de fichier.
         tk.Button(parent, text="...", width=self.browse_width, command=lambda: self._choisir_fichier(var)).grid(row=row, column=2, pady=6, padx=(6, 0))
 
     def _creer_section_export(self, parent, row):
@@ -193,13 +235,26 @@ class AppConciliation:
             self.canvas.yview_scroll(-1 * int(event.delta / 120), "units")
 
     def _valider_groupe_hexagone(self, valeurs, libelle_groupe):
+        """
+        Règle de validation métier pour l'IHM : 
+        On s'assure qu'un groupe de fichiers (Hospit ou Séances) est soit complètement vide (0 fichier),
+        soit complètement rempli (3 fichiers différents). S'il en manque un, on bloque.
+        """
+        # On crée une liste en filtrant les chemins vides
         fichiers_selectionnes = [valeur for valeur in valeurs if valeur]
+        
         if not fichiers_selectionnes:
+            # Le groupe est totalement vide. C'est autorisé (on analysera juste l'autre groupe).
             return True, ""
+            
+        # Si on convertit une liste en "set" (ensemble mathématique), les doublons sont détruits.
+        # Donc si la taille de la liste est différente du set, c'est que l'utilisateur a mis 2 fois le même fichier.
         if len(set(fichiers_selectionnes)) != len(fichiers_selectionnes):
             return False, f"Le groupe '{libelle_groupe}' contient le même fichier plusieurs fois. Choisissez des fichiers différents."
+            
         if len(fichiers_selectionnes) != len(valeurs):
             return False, f"Le groupe '{libelle_groupe}' doit contenir les 3 fichiers ou être vide."
+            
         return True, ""
     
     def _lancer_traitement(self):
@@ -237,16 +292,23 @@ class AppConciliation:
         self.status_label.config(text="Traitement en cours...")
         self.root.update_idletasks()
         
-        # Lancer dans un thread séparé pour ne pas bloquer l'interface
+        # --- THREADING (IMPORTANT) ---
+        # Si on lance l'analyse Pandas directement ici, l'interface Tkinter va bloquer (freeze)
+        # en attendant la fin du calcul, car on est sur le Main Thread.
+        # On délègue donc l'exécution à un thread secondaire.
+        # daemon=True permet au thread de s'arrêter proprement si on ferme la fenêtre.
         thread = threading.Thread(target=self._executer_script, daemon=True)
         thread.start()
     
     def _executer_script(self):
+        """
+        Méthode exécutée en arrière-plan. Elle fait l'interface avec notre logique métier.
+        """
         try:
-            # Importer le module de conciliation
+            # On importe notre script d'analyse métier à la volée.
             import controle_exhaust
             
-            # Récupérer les chemins
+            # Récupération des chemins actuels stockés dans nos variables Tkinter
             orbis_path = self.fichier_orbis.get()
             hexa_hospit = self._chemins_uniques([
                 self.fichiers_hexa["hexa_hospit"].get(),
@@ -268,12 +330,15 @@ class AppConciliation:
                 export_dir=export_dir
             )
             
-            # Si aucune exception n'est levée, c'est un succès
+            # Tout s'est bien passé.
+            # ATTENTION : on ne modifie jamais l'interface Tkinter depuis un thread secondaire.
+            # root.after(0, func, args) met func dans la file d'attente du thread principal 
+            # pour qu'il l'exécute le plus vite possible (délai 0).
             self.root.after(0, self._traitement_termine, True, "")
         except Exception as e:
-            # En cas d'erreur, on capture l'exception
+            # Si l'analyse plante, on catch l'erreur pour ne pas crasher l'application.
             import traceback
-            error_msg = traceback.format_exc()
+            error_msg = traceback.format_exc()  # Traceback donne la pile d'appels, essentiel pour débugger.
             self.root.after(0, self._traitement_termine, False, error_msg)
     
     def _traitement_termine(self, success, error_msg):

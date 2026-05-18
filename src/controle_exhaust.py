@@ -1,3 +1,5 @@
+# On utilise Pandas pour manipuler les exports des différents logiciels (Orbis, Hexagone)
+
 import pandas as pd
 import numpy as np
 import logging
@@ -29,26 +31,43 @@ COLONNES_HEXA_SEANCES = ['Nom/Prénom', 'Date de naissance', 'N° Dossier', 'Dat
 # FONCTIONS UTILITAIRES
 # ==========================================
 def valider_colonnes(df, colonnes_attendues, nom_fichier):
-    """Vérifie que toutes les colonnes attendues sont présentes dans le DataFrame.
-    Lève une erreur claire si des colonnes manquent."""
+    """
+    Sanity check : vérifie que le DataFrame contient bien les colonnes dont on a besoin.
+    Si le format de l'export source change (ce qui arrive souvent), ça permet de planter proprement
+    au lieu d'avoir des erreurs illisibles plus bas dans le code.
+    """
+    # On passe par des sets (ensembles) pour faire la comparaison facilement
     colonnes_presentes = set(df.columns)
     colonnes_manquantes = [c for c in colonnes_attendues if c not in colonnes_presentes]
+    
     if colonnes_manquantes:
+        # On arrête tout en levant une exception explicite
         msg = (f"Le fichier '{nom_fichier}' ne contient pas les colonnes attendues.\n"
                f"  Colonnes manquantes : {colonnes_manquantes}\n"
                f"  Colonnes trouvees   : {list(df.columns)}")
         logging.error(msg)
         raise ValueError(msg)
+        
     logging.info(f"Validation OK pour '{nom_fichier}' ({len(df)} lignes, {len(df.columns)} colonnes)")
 
 def nettoyer_nda_hexa(nda_series):
-    """Supprime les préfixes 'H ', 'N ', 'I ' devant les numéros de dossiers Hexagone."""
+    """
+    Nettoie la colonne des numéros de dossier.
+    Hexagone rajoute parfois des lettres avant le NDA (genre 'H 12345').
+    On utilise une regex simple pour dégager une majuscule + un espace en début de string.
+    """
     return nda_series.astype(str).str.replace(r'^[A-Z]\s', '', regex=True).str.strip()
 
 def formater_date_jjmmaaaa(date_series):
-    """Convertit les dates en chaînes de caractères au format JJ/MM/AAAA pour fiabiliser les jointures."""
+    """
+    Normalise les dates en format string JJ/MM/AAAA.
+    Les imports Excel peuvent ramener des types mixtes (datetime ou texte). Pour nos jointures, 
+    on a besoin d'un format texte 100% fiable.
+    """
+    # 'coerce' gère les trucs impossibles à parser (ça renvoie NaT au lieu de planter)
     dt_obj = pd.to_datetime(date_series, dayfirst=True, errors='coerce')
-    # Transforme en format texte strict, et force les valeurs non valides en vrai NaN
+    
+    # On formatte en texte et on met au propre les valeurs nulles pour éviter les conflits plus tard
     res = dt_obj.dt.strftime('%d/%m/%Y')
     return res.replace(['NaT', 'nan', 'NaN'], np.nan)
 
@@ -145,29 +164,34 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
             raise FileNotFoundError("Fichier Orbis introuvable.")
         chemin_orbis = fichiers_orbis[0]
     
+    # On force la lecture en texte (dtype=str) pour éviter que Pandas fasse de l'auto-détection foireuse
+    # et supprime par exemple les 0 au début des numéros de dossier.
     df_orbis_brut = pd.read_excel(chemin_orbis, dtype=str)
     valider_colonnes(df_orbis_brut, COLONNES_ORBIS, chemin_orbis.name)
     
-    # Règle d'exclusion : Retrait des lignes ayant 1402 en UM
+    # --- Règle métier --- 
+    # On filtre les données : on garde toutes les lignes où l'UM ne contient PAS '1402' 
+    # (le tilde '~' est l'opérateur logique NOT en Pandas).
     df_orbis = df_orbis_brut[~df_orbis_brut['UM'].astype(str).str.contains('1402', na=False)].copy()
 
-    # Nettoyage et formatage d'Orbis
+    # Nettoyage des identifiants et des dates pour préparer la jointure
     df_orbis['N° Hospit'] = df_orbis['N° Hospit'].str.strip()
     df_orbis['Entrée le'] = formater_date_jjmmaaaa(df_orbis['Entrée le'])
     df_orbis['Sortie le'] = formater_date_jjmmaaaa(df_orbis['Sortie le'])
-    df_orbis['Entrée le.1'] = formater_date_jjmmaaaa(df_orbis['Entrée le.1']) # Date de venue
+    df_orbis['Entrée le.1'] = formater_date_jjmmaaaa(df_orbis['Entrée le.1']) # Orbis nomme la date de venue ainsi
     
-    # ---------------- NOUVEAUTÉ CRUCIALE ICI ----------------
-    # Séparation stricte des flux Orbis selon les UM
+    # --- Séparation des flux selon les Unités Médicales (UM) ---
+    # Les règles de rapprochement sont différentes entre les séances et l'hospit, donc on sépare.
     ums_seances = ['1400', '1401', '1048']
     
-    # ORBIS SÉANCES : On garde uniquement les UM de séances
+    # .isin() permet de filtrer facilement sur une liste de valeurs (ce qui permet de guarder uniquement les UM séances)
     df_orbis_seances_filtre = df_orbis[df_orbis['UM'].astype(str).str.strip().isin(ums_seances)].copy()
     
-    # ORBIS HOSPIT : On exclut les UM de séances
+    # On exclut les UM de séances
     df_orbis_hospit_filtre = df_orbis[~df_orbis['UM'].astype(str).str.strip().isin(ums_seances)].copy()
     
-    # Pour les hospitalisations (Tri 1 et 3), on isole 1 ligne par séjour (NDA)
+    # Pour l'hospitalisation, on ne traite qu'une ligne par séjour.
+    # On dé-doublonne sur le NDA en gardant la première occurrence.
     df_orbis_hospit_sejour = df_orbis_hospit_filtre.drop_duplicates(subset=['N° Hospit'], keep='first')
     # ---------------------------------------------------------
 
@@ -232,6 +256,10 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
     
     if not df_hexa_hospit.empty:
         # Utilisation de df_orbis_hospit_sejour au lieu du fichier complet
+        # --- Jointure Externe (Outer Join) ---
+        # L'idée est de croiser les deux tables sur le numéro de dossier.
+        # how='outer' signifie qu'on garde toutes les lignes (celles qui matchent ET celles qui sont orphelines).
+        # indicator=True ajoute une colonne '_merge' pour nous dire d'où vient chaque ligne ('both', 'left_only', 'right_only').
         tri1 = pd.merge(
             df_orbis_hospit_sejour[cols_orbis_t1], 
             df_hexa_hospit[cols_hexa_t1], 
@@ -239,6 +267,7 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
             how='outer', indicator=True
         )
         
+        # Les anomalies sont tout simplement les lignes qui ne sont pas dans 'both' (donc soit dans l'un, soit dans l'autre)
         anomalies_tri1 = tri1[tri1['_merge'] != 'both'].copy()
     else:
         anomalies_tri1 = pd.DataFrame()
@@ -281,6 +310,8 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
     
     if not df_hexa_seances.empty:
         # Utilisation de df_orbis_seances_filtre au lieu du fichier complet
+        # Pareil que pour le Tri 1, mais ici la clé de jointure est composite : 
+        # il faut que le NDA ET la date de venue correspondent pour valider une séance.
         tri2 = pd.merge(
             df_orbis_seances_filtre[cols_orbis_t2], 
             df_hexa_seances[cols_hexa_t2], 
@@ -326,6 +357,9 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
     
     if not df_hexa_hospit.empty:
         # Utilisation de df_orbis_hospit_sejour ici aussi
+        # --- Jointure Interne (Inner Join) ---
+        # Ici, on ne cherche pas les orphelins, on veut juste regarder les patients qui sont bien dans les 2 systèmes
+        # pour vérifier s'il nous manque une date de sortie.
         tri3 = pd.merge(
             df_orbis_hospit_sejour[['N° Hospit', 'Nom', 'Prénom', 'Né(e) le', 'Entrée le', 'Sortie le', 'Exclu', 'Comm. codif. in', 'Comm. ctrl. DIM']], 
             df_hexa_hospit[['NDA', 'Date de sortie', 'Fichier Source']], 
@@ -333,6 +367,8 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
             how='inner' 
         )
         
+        # On filtre les lignes où l'une des deux dates de sortie est nulle (isna).
+        # L'opérateur '|' est le OU (OR) vectorisé de Pandas.
         anomalies_tri3 = tri3[pd.isna(tri3['Sortie le']) | pd.isna(tri3['Date de sortie'])].copy()
     else:
         anomalies_tri3 = pd.DataFrame()
