@@ -66,15 +66,44 @@ def nettoyer_nda_hexa(nda_series):
 def formater_date_jjmmaaaa(date_series):
     """
     Normalise les dates en format string JJ/MM/AAAA.
-    Les imports Excel peuvent ramener des types mixtes (datetime ou texte). Pour nos jointures, 
-    on a besoin d'un format texte 100% fiable.
+    Les imports Excel peuvent ramener des types mixtes :
+    - Des dates texte classiques : '05/11/2025', '2025-11-05', '05/11/2025 09:12'
+    - Des serial dates Excel (quand on lit un .xls avec dtype=str, les cellules date
+      sont lues comme des floats, ex: '45966.0' au lieu de '05/11/2025')
+    - Des valeurs vides, NaN, etc.
+    Pour nos jointures, on a besoin d'un format texte 100% fiable.
     """
-    # 'coerce' gère les trucs impossibles à parser (ça renvoie NaT au lieu de planter)
-    dt_obj = pd.to_datetime(date_series, dayfirst=True, errors='coerce')
+    from datetime import datetime as dt_class, timedelta
     
-    # On formatte en texte et on met au propre les valeurs nulles pour éviter les conflits plus tard
-    res = dt_obj.dt.strftime('%d/%m/%Y')
-    return res.replace(['NaT', 'nan', 'NaN'], np.nan)
+    def convertir_valeur(val):
+        # Gestion des valeurs vides / nulles
+        if pd.isna(val):
+            return np.nan
+        s = str(val).strip()
+        if s in ('', 'nan', 'NaN', 'NaT', 'None'):
+            return np.nan
+        
+        # Tentative de détection d'un serial date Excel (nombre flottant)
+        # Les fichiers .xls stockent les dates comme des nombres (ex: 45966.0 = 05/11/2025).
+        # Quand on lit avec dtype=str, on récupère ce nombre en tant que string.
+        try:
+            num = float(s)
+            # Plage raisonnable pour un serial date Excel (entre ~1900 et ~2200)
+            if 1 < num < 110000:
+                # Epoch Excel : 30 décembre 1899 (à cause du bug historique Lotus 123)
+                dt_val = dt_class(1899, 12, 30) + timedelta(days=num)
+                return dt_val.strftime('%d/%m/%Y')
+        except (ValueError, OverflowError):
+            pass
+        
+        # Parsing classique (gère 'JJ/MM/AAAA', 'AAAA-MM-JJ', 'JJ/MM/AAAA HH:MM', etc.)
+        try:
+            dt_val = pd.to_datetime(s, dayfirst=True)
+            return dt_val.strftime('%d/%m/%Y')
+        except Exception:
+            return np.nan
+    
+    return date_series.apply(convertir_valeur)
 
 def charger_famille_hexagone(dossier, mots_cles, colonnes_validation):
     """Charge et fusionne plusieurs fichiers Hexagone selon une liste de mots-clés."""
@@ -183,7 +212,26 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
     df_orbis['N° Hospit'] = df_orbis['N° Hospit'].str.strip()
     df_orbis['Entrée le'] = formater_date_jjmmaaaa(df_orbis['Entrée le'])
     df_orbis['Sortie le'] = formater_date_jjmmaaaa(df_orbis['Sortie le'])
-    df_orbis['Entrée le.1'] = formater_date_jjmmaaaa(df_orbis['Entrée le.1']) # Orbis nomme la date de venue ainsi
+    
+    # La deuxième paire 'Entrée le' / 'Sortie le' est renommée automatiquement par Pandas en '.1'
+    # Elle correspond aux dates par mouvement/acte (utilisée pour les séances dans le Tri 2)
+    if 'Entrée le.1' in df_orbis.columns:
+        df_orbis['Entrée le.1'] = formater_date_jjmmaaaa(df_orbis['Entrée le.1'])
+    else:
+        # Si la colonne n'existe pas (fichier Orbis sans doublon), on utilise 'Entrée le' en fallback
+        logging.warning("Colonne 'Entrée le.1' absente dans Orbis — utilisation de 'Entrée le' pour les séances.")
+        df_orbis['Entrée le.1'] = df_orbis['Entrée le']
+    
+    # Logging diagnostique : permet de vérifier que les dates ont bien été parsées
+    nb_entree_ok = df_orbis['Entrée le'].notna().sum()
+    nb_entree1_ok = df_orbis['Entrée le.1'].notna().sum()
+    nb_sortie_ok = df_orbis['Sortie le'].notna().sum()
+    logging.info(f"Orbis dates parsées — Entrée le: {nb_entree_ok}/{len(df_orbis)}, "
+                 f"Entrée le.1: {nb_entree1_ok}/{len(df_orbis)}, "
+                 f"Sortie le: {nb_sortie_ok}/{len(df_orbis)}")
+    logging.info(f"Orbis — Exemples Entrée le: {df_orbis['Entrée le'].dropna().head(3).tolist()}")
+    logging.info(f"Orbis — Exemples Entrée le.1: {df_orbis['Entrée le.1'].dropna().head(3).tolist()}")
+    logging.info(f"Orbis — Exemples Sortie le: {df_orbis['Sortie le'].dropna().head(3).tolist()}")
     
     # --- Séparation des flux selon les Unités Médicales (UM) ---
     # Les règles de rapprochement sont différentes entre les séances et l'hospit, donc on sépare.
@@ -225,6 +273,12 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
         df_hexa_hospit[['Nom', 'Prénom']] = df_hexa_hospit['Nom/Prénom'].str.split('/', n=1, expand=True)
         df_hexa_hospit['Date entrée'] = formater_date_jjmmaaaa(df_hexa_hospit['Date entrée'])
         df_hexa_hospit['Date de sortie'] = formater_date_jjmmaaaa(df_hexa_hospit['Date'])
+        
+        # Logging diagnostique Hexagone hospit
+        nb_entree_h = df_hexa_hospit['Date entrée'].notna().sum()
+        nb_sortie_h = df_hexa_hospit['Date de sortie'].notna().sum()
+        logging.info(f"Hexa Hospit dates — Date entrée: {nb_entree_h}/{len(df_hexa_hospit)}, "
+                     f"Date de sortie: {nb_sortie_h}/{len(df_hexa_hospit)}")
 
     # ---------------------------------------------------------
     # 3. PRÉPARATION DES FICHIERS HEXAGONE (SÉANCES)
@@ -250,6 +304,11 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
         df_hexa_seances['NDA'] = df_hexa_seances['N° Dossier'].astype(str).str.strip()
         df_hexa_seances[['Nom', 'Prénom']] = df_hexa_seances['Nom/Prénom'].str.split('/', n=1, expand=True)
         df_hexa_seances['Date de venue'] = formater_date_jjmmaaaa(df_hexa_seances['Date'])
+        
+        # Logging diagnostique Hexagone séances
+        nb_venue_h = df_hexa_seances['Date de venue'].notna().sum()
+        logging.info(f"Hexa Séances dates — Date de venue: {nb_venue_h}/{len(df_hexa_seances)}")
+        logging.info(f"Hexa Séances — Exemples Date de venue: {df_hexa_seances['Date de venue'].dropna().head(3).tolist()}")
 
     # =========================================================
     # TRI 1 : COMPARAISON FAMILLE HOSPITALISATION
