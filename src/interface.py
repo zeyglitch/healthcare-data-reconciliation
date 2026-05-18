@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import threading
 from pathlib import Path
+import controle_exhaust
 
 class AppConciliation:
     """

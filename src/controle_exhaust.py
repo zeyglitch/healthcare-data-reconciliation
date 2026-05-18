@@ -6,6 +6,8 @@ import logging
 import argparse
 from pathlib import Path
 from datetime import datetime
+import openpyxl
+import xlrd
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
