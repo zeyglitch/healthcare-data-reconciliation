@@ -38,6 +38,9 @@ def valider_colonnes(df, colonnes_attendues, nom_fichier):
     Si le format de l'export source change (ce qui arrive souvent), ça permet de planter proprement
     au lieu d'avoir des erreurs illisibles plus bas dans le code.
     """
+    # Suppression automatique des espaces superflus avant et après les noms de colonnes (ex: 'Date ' -> 'Date')
+    df.columns = df.columns.str.strip()
+    
     # On passe par des sets (ensembles) pour faire la comparaison facilement
     colonnes_presentes = set(df.columns)
     colonnes_manquantes = [c for c in colonnes_attendues if c not in colonnes_presentes]
