@@ -280,6 +280,16 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
         logging.info(f"Hexa Hospit dates — Date entrée: {nb_entree_h}/{len(df_hexa_hospit)}, "
                      f"Date de sortie: {nb_sortie_h}/{len(df_hexa_hospit)}")
 
+        # --- Dédoublonnage pour garder une ligne par séjour ---
+        # Si le patient a plusieurs mouvements, on garde la date de sortie la plus récente, 
+        # ou NaN s'il est toujours hospitalisé.
+        df_hexa_hospit['_tri_date_sortie'] = pd.to_datetime(df_hexa_hospit['Date de sortie'], dayfirst=True, errors='coerce')
+        df_hexa_hospit_sejour = df_hexa_hospit.sort_values(
+            by=['NDA', '_tri_date_sortie'], ascending=[True, False], na_position='last'
+        ).drop_duplicates(subset=['NDA'], keep='first').drop(columns=['_tri_date_sortie'])
+    else:
+        df_hexa_hospit_sejour = pd.DataFrame()
+
     # ---------------------------------------------------------
     # 3. PRÉPARATION DES FICHIERS HEXAGONE (SÉANCES)
     # ---------------------------------------------------------
@@ -301,7 +311,7 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
         df_hexa_seances = charger_famille_hexagone(DOSSIER_IMPORT, mots_seances, COLONNES_HEXA_SEANCES)
     
     if not df_hexa_seances.empty:
-        df_hexa_seances['NDA'] = df_hexa_seances['N° Dossier'].astype(str).str.strip()
+        df_hexa_seances['NDA'] = nettoyer_nda_hexa(df_hexa_seances['N° Dossier'])
         df_hexa_seances[['Nom', 'Prénom']] = df_hexa_seances['Nom/Prénom'].str.split('/', n=1, expand=True)
         df_hexa_seances['Date de venue'] = formater_date_jjmmaaaa(df_hexa_seances['Date'])
         
@@ -326,7 +336,7 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
         # indicator=True ajoute une colonne '_merge' pour nous dire d'où vient chaque ligne ('both', 'left_only', 'right_only').
         tri1 = pd.merge(
             df_orbis_hospit_sejour[cols_orbis_t1], 
-            df_hexa_hospit[cols_hexa_t1], 
+            df_hexa_hospit_sejour[cols_hexa_t1], 
             left_on='N° Hospit', right_on='NDA', 
             how='outer', indicator=True
         )
@@ -374,11 +384,16 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
     
     if not df_hexa_seances.empty:
         # Utilisation de df_orbis_seances_filtre au lieu du fichier complet
+        # On dé-doublonne sur les clés de jointure pour éviter les produits cartésiens
+        # si un patient a plusieurs actes/lignes le même jour pour la même séance.
+        orbis_t2_dedup = df_orbis_seances_filtre[cols_orbis_t2].drop_duplicates(subset=['N° Hospit', 'Entrée le.1'])
+        hexa_t2_dedup = df_hexa_seances[cols_hexa_t2].drop_duplicates(subset=['NDA', 'Date de venue'])
+        
         # Pareil que pour le Tri 1, mais ici la clé de jointure est composite : 
         # il faut que le NDA ET la date de venue correspondent pour valider une séance.
         tri2 = pd.merge(
-            df_orbis_seances_filtre[cols_orbis_t2], 
-            df_hexa_seances[cols_hexa_t2], 
+            orbis_t2_dedup, 
+            hexa_t2_dedup, 
             left_on=['N° Hospit', 'Entrée le.1'], right_on=['NDA', 'Date de venue'], 
             how='outer', indicator=True
         )
@@ -426,32 +441,32 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
         # pour vérifier s'il nous manque une date de sortie.
         tri3 = pd.merge(
             df_orbis_hospit_sejour[['N° Hospit', 'Nom', 'Prénom', 'Né(e) le', 'Entrée le', 'Sortie le', 'Exclu', 'Comm. codif. in', 'Comm. ctrl. DIM']], 
-            df_hexa_hospit[['NDA', 'Date de sortie', 'Fichier Source']], 
+            df_hexa_hospit_sejour[['NDA', 'Date de sortie', 'Fichier Source']], 
             left_on='N° Hospit', right_on='NDA', 
             how='inner' 
         )
         
-        # On filtre les lignes où l'une des deux dates de sortie est nulle (isna).
-        # L'opérateur '|' est le OU (OR) vectorisé de Pandas.
-        anomalies_tri3 = tri3[pd.isna(tri3['Sortie le']) | pd.isna(tri3['Date de sortie'])].copy()
+        # On filtre pour ne garder que les DÉSACCORDS (présent dans l'un, absent dans l'autre).
+        # On exclut les cas où les deux sont vides (car cela correspond aux patients légitimement hospitalisés, pas à des anomalies).
+        cond_orbis_missing = pd.isna(tri3['Sortie le']) & pd.notna(tri3['Date de sortie'])
+        cond_hexa_missing = pd.notna(tri3['Sortie le']) & pd.isna(tri3['Date de sortie'])
+        
+        anomalies_tri3 = tri3[cond_orbis_missing | cond_hexa_missing].copy()
     else:
         anomalies_tri3 = pd.DataFrame()
     
     # "Date trouvée ailleurs ?" : Oui si au moins un logiciel a la date, Non sinon
     if not anomalies_tri3.empty:
+        # Puisqu'on ne garde que les désaccords (l'un a la date, l'autre non),
+        # la date est TOUJOURS trouvée ailleurs → on indique simplement la source.
         cond_manque_orbis = pd.isna(anomalies_tri3['Sortie le']) & pd.notna(anomalies_tri3['Date de sortie'])
         cond_manque_hexa = pd.notna(anomalies_tri3['Sortie le']) & pd.isna(anomalies_tri3['Date de sortie'])
-        cond_manque_partout = pd.isna(anomalies_tri3['Sortie le']) & pd.isna(anomalies_tri3['Date de sortie'])
-        anomalies_tri3['Date trouvée ailleurs ?'] = np.select(
-            [cond_manque_orbis, cond_manque_hexa, cond_manque_partout],
-            ['Oui', 'Oui', 'Non'],
-            default='Inconnu'
-        )
+        anomalies_tri3['Date trouvée ailleurs ?'] = 'Oui'
         
-        # "Source de la date" : nom exact du fichier Hexa, "Orbis", ou "Aucun"
+        # "Source de la date" : nom exact du fichier Hexa si c'est Orbis qui manque, ou "Orbis" sinon
         anomalies_tri3['Source de la date'] = np.select(
-            [cond_manque_orbis, cond_manque_hexa, cond_manque_partout],
-            [anomalies_tri3['Fichier Source'].values, 'Orbis', 'Aucun'],
+            [cond_manque_orbis, cond_manque_hexa],
+            [anomalies_tri3['Fichier Source'].values, 'Orbis'],
             default='Inconnu'
         )
         
