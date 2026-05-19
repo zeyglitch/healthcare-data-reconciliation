@@ -18,11 +18,7 @@ DOSSIER_IMPORT = Path('./data_test/import_test')
 DOSSIER_EXPORT = Path('./data_test/export_test')
 DOSSIER_EXPORT.mkdir(parents=True, exist_ok=True)
 
-logging.basicConfig(
-    filename=DOSSIER_EXPORT / f'Logs_Conciliation_{datetime.now().strftime("%Y%m%d")}.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+
 
 # Colonnes attendues par type de fichier (pour validation)
 COLONNES_ORBIS = ['N° Hospit', 'Entrée le', 'Sortie le', 'Nom', 'Prénom', 'Né(e) le', 'UM', 'Exclu', 'Comm. codif. in', 'Comm. ctrl. DIM']
@@ -184,6 +180,15 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
         dossier_export.mkdir(parents=True, exist_ok=True)
     else:
         dossier_export = DOSSIER_EXPORT
+        
+    # Configuration du fichier de log (.txt) dans le dossier d'export choisi.
+    # force=True permet d'écraser la configuration si on relance depuis l'interface.
+    logging.basicConfig(
+        filename=dossier_export / f'Logs_Conciliation_{datetime.now().strftime("%Y%m%d")}.txt',
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        force=True
+    )
     
     logging.info("--- DÉMARRAGE DU TRAITEMENT ---")
 
@@ -244,8 +249,12 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
     df_orbis_hospit_filtre = df_orbis[~df_orbis['UM'].astype(str).str.strip().isin(ums_seances)].copy()
     
     # Pour l'hospitalisation, on ne traite qu'une ligne par séjour.
-    # On dé-doublonne sur le NDA en gardant la première occurrence.
-    df_orbis_hospit_sejour = df_orbis_hospit_filtre.drop_duplicates(subset=['N° Hospit'], keep='first')
+    # Si le patient a plusieurs mouvements (lignes), on veut garder en priorité 
+    # la ligne sans date de sortie (NaN) pour savoir s'il est toujours hospitalisé.
+    df_orbis_hospit_filtre['_tri_sortie'] = pd.to_datetime(df_orbis_hospit_filtre['Sortie le'], dayfirst=True, errors='coerce')
+    df_orbis_hospit_sejour = df_orbis_hospit_filtre.sort_values(
+        by=['N° Hospit', '_tri_sortie'], ascending=[True, False], na_position='first'
+    ).drop_duplicates(subset=['N° Hospit'], keep='first').drop(columns=['_tri_sortie'])
     # ---------------------------------------------------------
 
     # ---------------------------------------------------------
