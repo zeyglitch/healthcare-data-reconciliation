@@ -290,11 +290,12 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
                      f"Date de sortie: {nb_sortie_h}/{len(df_hexa_hospit)}")
 
         # --- Dédoublonnage pour garder une ligne par séjour ---
-        # Si le patient a plusieurs mouvements, on garde la date de sortie la plus récente, 
-        # ou NaN s'il est toujours hospitalisé.
+        # Si le patient a plusieurs mouvements, on priorise la ligne SANS date de sortie (NaN),
+        # car cela signifie que le patient est toujours hospitalisé.
+        # C'est la même logique que pour Orbis (na_position='first').
         df_hexa_hospit['_tri_date_sortie'] = pd.to_datetime(df_hexa_hospit['Date de sortie'], dayfirst=True, errors='coerce')
         df_hexa_hospit_sejour = df_hexa_hospit.sort_values(
-            by=['NDA', '_tri_date_sortie'], ascending=[True, False], na_position='last'
+            by=['NDA', '_tri_date_sortie'], ascending=[True, False], na_position='first'
         ).drop_duplicates(subset=['NDA'], keep='first').drop(columns=['_tri_date_sortie'])
     else:
         df_hexa_hospit_sejour = pd.DataFrame()
@@ -455,12 +456,22 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
             how='inner' 
         )
         
+        # Logging diagnostique Tri 3
+        nb_tri3 = len(tri3)
+        nb_sortie_orbis_nan = pd.isna(tri3['Sortie le']).sum()
+        nb_sortie_hexa_nan = pd.isna(tri3['Date de sortie']).sum()
+        logging.info(f"Tri 3 — Patients communs: {nb_tri3}, "
+                     f"Sortie le (Orbis) NaN: {nb_sortie_orbis_nan}, "
+                     f"Date de sortie (Hexa) NaN: {nb_sortie_hexa_nan}")
+        
         # On filtre pour ne garder que les DÉSACCORDS (présent dans l'un, absent dans l'autre).
         # On exclut les cas où les deux sont vides (car cela correspond aux patients légitimement hospitalisés, pas à des anomalies).
         cond_orbis_missing = pd.isna(tri3['Sortie le']) & pd.notna(tri3['Date de sortie'])
         cond_hexa_missing = pd.notna(tri3['Sortie le']) & pd.isna(tri3['Date de sortie'])
         
         anomalies_tri3 = tri3[cond_orbis_missing | cond_hexa_missing].copy()
+        logging.info(f"Tri 3 — Anomalies détectées: {len(anomalies_tri3)} "
+                     f"(manquant Orbis: {cond_orbis_missing.sum()}, manquant Hexa: {cond_hexa_missing.sum()})")
     else:
         anomalies_tri3 = pd.DataFrame()
     
