@@ -61,23 +61,26 @@ def nettoyer_nda_hexa(nda_series):
 
 def formater_date_jjmmaaaa(date_series):
     """
-    Normalise les dates en format string JJ/MM/AAAA.
+    Normalise les dates en objets datetime Python (à minuit, sans heure).
     Les imports Excel peuvent ramener des types mixtes :
     - Des dates texte classiques : '05/11/2025', '2025-11-05', '05/11/2025 09:12'
     - Des serial dates Excel (quand on lit un .xls avec dtype=str, les cellules date
       sont lues comme des floats, ex: '45966.0' au lieu de '05/11/2025')
     - Des valeurs vides, NaN, etc.
-    Pour nos jointures, on a besoin d'un format texte 100% fiable.
+    On retourne des datetime natifs (et non des strings) pour deux raisons :
+    1. Eviter l'ambiguïté de dayfirst=True qui peut produire du mm/jj/aaaa selon les données.
+    2. Permettre à mettre_en_forme_excel() de forcer le format DD/MM/YYYY dans Excel,
+       indépendamment de la locale du poste.
     """
     from datetime import datetime as dt_class, timedelta
     
     def convertir_valeur(val):
         # Gestion des valeurs vides / nulles
         if pd.isna(val):
-            return np.nan
+            return pd.NaT
         s = str(val).strip()
         if s in ('', 'nan', 'NaN', 'NaT', 'None'):
-            return np.nan
+            return pd.NaT
         
         # Tentative de détection d'un serial date Excel (nombre flottant)
         # Les fichiers .xls stockent les dates comme des nombres (ex: 45966.0 = 05/11/2025).
@@ -88,18 +91,21 @@ def formater_date_jjmmaaaa(date_series):
             if 1 < num < 110000:
                 # Epoch Excel : 30 décembre 1899 (à cause du bug historique Lotus 123)
                 dt_val = dt_class(1899, 12, 30) + timedelta(days=num)
-                return dt_val.strftime('%d/%m/%Y')
+                return dt_class(dt_val.year, dt_val.month, dt_val.day)
         except (ValueError, OverflowError):
             pass
         
         # Parsing classique (gère 'JJ/MM/AAAA', 'AAAA-MM-JJ', 'JJ/MM/AAAA HH:MM', etc.)
+        # dayfirst=True est fiable ici car on retourne un objet datetime :
+        # c'est openpyxl + number_format qui contrôle l'affichage final, pas strftime.
         try:
             dt_val = pd.to_datetime(s, dayfirst=True)
-            return dt_val.strftime('%d/%m/%Y')
+            return dt_class(dt_val.year, dt_val.month, dt_val.day)
         except Exception:
-            return np.nan
+            return pd.NaT
     
-    return date_series.apply(convertir_valeur)
+    # On normalise la série résultante en datetime64 pandas
+    return pd.to_datetime(date_series.apply(convertir_valeur), errors='coerce').dt.normalize()
 
 def charger_famille_hexagone(dossier, mots_cles, colonnes_validation):
     """Charge et fusionne plusieurs fichiers Hexagone selon une liste de mots-clés."""
@@ -132,7 +138,9 @@ def mettre_en_forme_excel(chemin_fichier):
     """Applique la mise en forme sur un fichier Excel existant :
     - En-têtes en gras avec fond coloré
     - Largeur de colonnes auto-ajustée
-    - Filtres automatiques activés"""
+    - Filtres automatiques activés
+    - Formatage explicite DD/MM/YYYY pour toutes les cellules datetime
+      (évite qu'Excel reformate les dates selon la locale du poste)"""
     from openpyxl import load_workbook
     
     wb = load_workbook(chemin_fichier)
@@ -165,6 +173,14 @@ def mettre_en_forme_excel(chemin_fichier):
         
         # Activation des filtres automatiques
         ws.auto_filter.ref = ws.dimensions
+        
+        # Formatage explicite des cellules datetime au format JJ/MM/AAAA
+        # Indispensable : sans cela, Excel utilise la locale du poste (souvent mm/jj/aaaa)
+        for col_idx in range(1, ws.max_column + 1):
+            for row_idx in range(2, ws.max_row + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                if isinstance(cell.value, datetime):
+                    cell.number_format = 'DD/MM/YYYY'
     
     wb.save(chemin_fichier)
 
