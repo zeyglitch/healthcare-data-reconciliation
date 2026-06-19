@@ -231,6 +231,7 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
 
     # Nettoyage des identifiants et des dates pour préparer la jointure
     df_orbis['N° Hospit'] = df_orbis['N° Hospit'].str.strip()
+    df_orbis['Né(e) le'] = formater_date_jjmmaaaa(df_orbis['Né(e) le'])
     df_orbis['Entrée le'] = formater_date_jjmmaaaa(df_orbis['Entrée le'])
     df_orbis['Sortie le'] = formater_date_jjmmaaaa(df_orbis['Sortie le'])
     
@@ -296,6 +297,7 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
     if not df_hexa_hospit.empty:
         df_hexa_hospit['NDA'] = nettoyer_nda_hexa(df_hexa_hospit['Dossier'])
         df_hexa_hospit[['Nom', 'Prénom']] = df_hexa_hospit['Nom/Prénom'].str.split('/', n=1, expand=True)
+        df_hexa_hospit['Date de naissance'] = formater_date_jjmmaaaa(df_hexa_hospit['Date de naissance'])
         df_hexa_hospit['Date entrée'] = formater_date_jjmmaaaa(df_hexa_hospit['Date entrée'])
         df_hexa_hospit['Date de sortie'] = formater_date_jjmmaaaa(df_hexa_hospit['Date'])
         
@@ -339,6 +341,7 @@ def lancer_conciliation(orbis_path=None, hexa_hospit_paths=None, hexa_seances_pa
     if not df_hexa_seances.empty:
         df_hexa_seances['NDA'] = nettoyer_nda_hexa(df_hexa_seances['N° Dossier'])
         df_hexa_seances[['Nom', 'Prénom']] = df_hexa_seances['Nom/Prénom'].str.split('/', n=1, expand=True)
+        df_hexa_seances['Date de naissance'] = formater_date_jjmmaaaa(df_hexa_seances['Date de naissance'])
         df_hexa_seances['Date de venue'] = formater_date_jjmmaaaa(df_hexa_seances['Date'])
         
         # Logging diagnostique Hexagone séances
