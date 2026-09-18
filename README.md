@@ -82,11 +82,6 @@ pyinstaller --noconsole --onefile --name "Conciliation_DIM" src/interface.py
 
 L'exécutable `Conciliation_DIM.exe` est généré dans `dist/`.
 
-## Auteur
-
-**Mathieu Jonniaux** — ISIS Castres, FIE4 DSIA (Données de Santé et IA)
-[github.com/zeyglitch](https://github.com/zeyglitch) · [LinkedIn](https://www.linkedin.com/in/mathieu-jonniaux)
-
 ## Licence
 
 MIT — voir [LICENSE](LICENSE).
