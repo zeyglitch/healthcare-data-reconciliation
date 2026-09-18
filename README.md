@@ -1,44 +1,92 @@
-# 🩺 Conciliation DIM - Aide à l'Exhaustivité
+# Contrôle d'exhaustivité PMSI — MCO (Orbis ↔ Hexagone)
 
-Bienvenue dans l'outil de conciliation dédié au département d'Information Médicale (DIM). Ce petit logiciel a été conçu pour simplifier la vie des codeurs en automatisant la comparaison entre les exports **Orbis** et **Hexagone**.
+Outil Python d'automatisation du contrôle croisé entre les exports du dossier patient (Orbis) et le logiciel administratif (Hexagone), pour un Département d'Information Médicale (DIM) hospitalier — activité de Médecine, Chirurgie et Obstétrique (MCO).
 
-L'objectif ? Repérer en un clin d'œil les séjours ou séances qui manquent à l'appel et s'assurer que tout est bien facturé !
+## Contexte
 
-## 🌟 Ce que fait l'outil pour vous
+Développé pendant un stage de 3ème année d'école d'ingénieur (ISIS Castres, partenaire INSA) au Département d'Information Médicale d'un Centre Hospitalier public, entre avril et juin 2026.
 
-- **Analyse croisée** : Compare automatiquement vos fichiers exports.
-- **Tri intelligent** : Sépare les hospitalisations classiques des séances (Chimio, Dialyse...).
-- **Rapports clairs** : Génère des fichiers Excel tout propres, avec des couleurs et des filtres, prêts à être exploités.
-- **Gain de temps** : Plus besoin de faire des RECHERCHEV complexes à la main.
+Le contrôle d'exhaustivité mensuel — vérifier que chaque séjour identifié dans Orbis est bien facturé dans Hexagone, et inversement — était jusqu'alors réalisé manuellement via une série de RECHERCHEV Excel, à raison d'environ **une journée de travail par mois**.
 
-## 📁 Comment est organisé le projet ?
+## Résultats
 
-Pour que tout soit bien rangé, nous avons séparé les choses :
-- `src/` : Contient la "mécanique" du logiciel (les scripts Python).
-- `data_test/` : C'est ici que vous pouvez mettre vos fichiers pour faire des essais (`import_test` pour l'entrée, `export_test` pour les résultats).
-- `docs/` : Vous y trouverez le **Guide Développeur** si vous avez besoin de modifier le fonctionnement.
+- Traitement croisé de **7 fichiers d'export** pour l'activité MCO.
+- Jusqu'à **45 000 lignes traitées par mois**.
+- Contrôle mensuel ramené de ~1 jour à quelques minutes.
+- **Validé et déployé en production** sur les postes des codeurs du DIM.
+- Distribution sous forme d'exécutable Windows autonome (`.exe`) via PyInstaller, pour utilisation sans installation Python.
 
-## 🛠️ Installation (pour la première fois)
+## Fonctionnalités
 
-1. Assurez-vous d'avoir **Python** installé.
-2. Dans votre terminal, installez les outils nécessaires :
-   ```bash
-   pip install -r requirements.txt
-   ```
+- **Analyse croisée automatique** entre exports Orbis et Hexagone.
+- **Tri intelligent** : séparation des hospitalisations classiques (MCO) et des séances (chimiothérapie, dialyse, radiothérapie).
+- **Rapports Excel formatés** : mise en couleur des anomalies, filtres actifs, colonnes prêtes à l'exploitation par le codeur.
+- **Interface graphique** simple (Tkinter) pour sélection des fichiers et lancement du traitement.
 
-## 🚀 Comment l'utiliser ?
+## Stack technique
 
-### Mode Classique (Interface Graphique)
-C'est la méthode la plus simple. Lancez cette commande depuis le dossier principal :
+- Python 3.9+
+- Pandas (traitement des données)
+- openpyxl (génération Excel avec mise en forme)
+- Tkinter (interface graphique)
+- PyInstaller (distribution `.exe`)
+
+## Confidentialité et publication
+
+- **Publication autorisée** par le maître de stage.
+- Code **entièrement générique** : aucun élément de configuration ni identifiant du Centre Hospitalier n'est présent dans le code source.
+- Les jeux de données inclus dans `data_test/` sont **entièrement synthétiques** — aucun IPP, NDA, NIP, ni aucune donnée patient réelle. Générés pour la démonstration.
+- Le nom exact de l'établissement n'est intentionnellement pas mentionné.
+
+## Structure du projet
+
+```
+├── src/                  # Scripts Python (logique métier + interface)
+├── data_test/
+│   └── import_test/      # Fichiers d'essai synthétiques
+├── docs/                 # Guide développeur
+├── requirements.txt      # Dépendances Python
+└── .gitignore
+```
+
+## Installation
+
+```bash
+python -m venv venv
+# Windows PowerShell :
+venv\Scripts\Activate.ps1
+# macOS / Linux :
+source venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+## Utilisation
+
+### Interface graphique
+
 ```bash
 python src/interface.py
 ```
-Une fenêtre s'ouvrira pour vous permettre de choisir vos fichiers et de cliquer sur "Lancer".
 
-### Créer un fichier .exe
-Si vous voulez donner l'outil à un collègue qui n'a pas Python, vous pouvez transformer le script en application Windows :
+Sélectionner les fichiers d'export Orbis et Hexagone, indiquer le dossier de sortie, cliquer sur **Lancer**.
+
+### Génération d'un exécutable Windows autonome
+
+Pour distribuer l'outil à un utilisateur qui n'a pas Python installé :
+
 ```bash
 pip install pyinstaller
 pyinstaller --noconsole --onefile --name "Conciliation_DIM" src/interface.py
 ```
-Le résultat sera dans le dossier `dist/`.
+
+L'exécutable `Conciliation_DIM.exe` est généré dans `dist/`.
+
+## Auteur
+
+**Mathieu Jonniaux** — ISIS Castres, FIE4 DSIA (Données de Santé et IA)
+[github.com/zeyglitch](https://github.com/zeyglitch) · [LinkedIn](https://www.linkedin.com/in/mathieu-jonniaux)
+
+## Licence
+
+MIT — voir [LICENSE](LICENSE).
