@@ -45,6 +45,7 @@ Le contrôle d'exhaustivité mensuel — vérifier que chaque séjour identifié
 ├── data_test/
 │   └── import_test/      # Fichiers d'essai synthétiques
 ├── docs/                 # Guide développeur
+├── mode_logiciel/        # Mode d'emploi utilisateur
 ├── requirements.txt      # Dépendances Python
 └── .gitignore
 ```
