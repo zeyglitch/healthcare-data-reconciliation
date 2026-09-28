@@ -37,6 +37,7 @@ Le contrôle d'exhaustivité mensuel — vérifier que chaque séjour identifié
 - Code **entièrement générique** : aucun élément de configuration ni identifiant du Centre Hospitalier n'est présent dans le code source.
 - Les jeux de données inclus dans `data_test/` sont **entièrement synthétiques** — aucun IPP, NDA, NIP, ni aucune donnée patient réelle. Générés pour la démonstration.
 - Le nom exact de l'établissement n'est intentionnellement pas mentionné.
+- Publication réalisée avec l'accord du Centre Hospitalier de Cahors.
 
 ## Structure du projet
 
