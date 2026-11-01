@@ -4,7 +4,7 @@ Outil Python d'automatisation du contrôle croisé entre les exports du dossier 
 
 ## Contexte
 
-Développé pendant un stage de 3ème année d'école d'ingénieur (ISIS Castres, partenaire INSA) au Département d'Information Médicale du Centre Hospitalier de Cahors, entre avril et juin 2026. Le concept général de l'applicatif a été défini par le DIM du Centre Hospitalier de Cahors ; le code présenté ici en est la réalisation technique, publiée avec leur accord.
+Développé pendant un stage de 3ème année d'école d'ingénieur (ISIS Castres, partenaire INSA) au Département d'Information Médicale du Centre Hospitalier de Cahors, entre avril et juin 2026. Le concept général de l'applicatif a été défini par le DIM du Centre Hospitalier de Cahors ; le code présenté ici en est la réalisation technique, publiée avec l'accord du DIM.
 
 Le contrôle d'exhaustivité mensuel — vérifier que chaque séjour identifié dans Orbis est bien facturé dans Hexagone, et inversement — était jusqu'alors réalisé manuellement via une série de RECHERCHEV Excel, à raison d'environ **une journée de travail par mois**.
 
@@ -37,7 +37,7 @@ Le contrôle d'exhaustivité mensuel — vérifier que chaque séjour identifié
 - Code **entièrement générique** : aucun élément de configuration ni identifiant du Centre Hospitalier n'est présent dans le code source.
 - Les jeux de données inclus dans `data_test/` sont **entièrement synthétiques** — aucun IPP, NDA, NIP, ni aucune donnée patient réelle. Générés pour la démonstration.
 - Le nom exact de l'établissement n'est intentionnellement pas mentionné.
-- Publication réalisée avec l'accord du Centre Hospitalier de Cahors.
+- Publication réalisée avec l'accord du DIM du Centre Hospitalier de Cahors ; validation de la direction en cours.
 
 ## Structure du projet
 
